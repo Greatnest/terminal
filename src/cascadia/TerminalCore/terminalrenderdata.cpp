@@ -92,7 +92,9 @@ COLORREF Terminal::GetCursorColor() const noexcept
 
 bool Terminal::IsCursorDoubleWidth() const noexcept
 {
-    return false;
+    const auto position = _buffer->GetCursor().GetPosition();
+    TextBufferTextIterator it(TextBufferCellIterator(*_buffer, position));
+    return IsGlyphFullWidth(*it);
 }
 
 const std::vector<RenderOverlay> Terminal::GetOverlays() const noexcept
@@ -115,6 +117,12 @@ std::vector<Microsoft::Console::Types::Viewport> Terminal::GetSelectionRects() n
     }
 
     return result;
+}
+
+void Terminal::SelectNewRegion(const COORD coordStart, const COORD coordEnd)
+{
+    SetSelectionAnchor(coordStart);
+    SetEndSelectionPosition(coordEnd);
 }
 
 const std::wstring Terminal::GetConsoleTitle() const noexcept

@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "Tab.h"
+#include "Utils.h"
 
 using namespace winrt::Windows::UI::Xaml;
 using namespace winrt::Windows::UI::Core;
@@ -124,7 +125,7 @@ void Tab::_Focus()
     auto lastFocusedControl = _rootPane->GetFocusedTerminalControl();
     if (lastFocusedControl)
     {
-        lastFocusedControl.GetControl().Focus(FocusState::Programmatic);
+        lastFocusedControl.Focus(FocusState::Programmatic);
     }
 }
 
@@ -140,6 +141,21 @@ void Tab::_Focus()
 void Tab::UpdateFocus()
 {
     _rootPane->UpdateFocus();
+}
+
+void Tab::UpdateIcon(const winrt::hstring iconPath)
+{
+    // Don't reload our icon if it hasn't changed.
+    if (iconPath == _lastIconPath)
+    {
+        return;
+    }
+
+    _lastIconPath = iconPath;
+
+    _tabViewItem.Dispatcher().RunAsync(CoreDispatcherPriority::Normal, [this]() {
+        _tabViewItem.Icon(GetColoredIcon(_lastIconPath));
+    });
 }
 
 // Method Description:
@@ -181,36 +197,85 @@ void Tab::SetTabText(const winrt::hstring& text)
 void Tab::Scroll(const int delta)
 {
     auto control = GetFocusedTerminalControl();
-    control.GetControl().Dispatcher().RunAsync(CoreDispatcherPriority::Normal, [control, delta]() {
+    control.Dispatcher().RunAsync(CoreDispatcherPriority::Normal, [control, delta]() {
         const auto currentOffset = control.GetScrollOffset();
         control.KeyboardScrollViewport(currentOffset + delta);
     });
 }
 
 // Method Description:
-// - Vertically split the focused pane in our tree of panes, and place the
-//   given TermControl into the newly created pane.
+// - Determines whether the focused pane has sufficient space to be split.
 // Arguments:
-// - profile: The profile GUID to associate with the newly created pane.
-// - control: A TermControl to use in the new pane.
+// - splitType: The type of split we want to create.
 // Return Value:
-// - <none>
-void Tab::AddVerticalSplit(const GUID& profile, TermControl& control)
+// - True if the focused pane can be split. False otherwise.
+bool Tab::CanSplitPane(Pane::SplitState splitType)
 {
-    _rootPane->SplitVertical(profile, control);
+    return _rootPane->CanSplit(splitType);
 }
 
 // Method Description:
-// - Horizontally split the focused pane in our tree of panes, and place the
+// - Split the focused pane in our tree of panes, and place the
 //   given TermControl into the newly created pane.
 // Arguments:
+// - splitType: The type of split we want to create.
 // - profile: The profile GUID to associate with the newly created pane.
 // - control: A TermControl to use in the new pane.
 // Return Value:
 // - <none>
-void Tab::AddHorizontalSplit(const GUID& profile, TermControl& control)
+void Tab::SplitPane(Pane::SplitState splitType, const GUID& profile, TermControl& control)
 {
-    _rootPane->SplitHorizontal(profile, control);
+    _rootPane->Split(splitType, profile, control);
+}
+
+// Method Description:
+// - Update the size of our panes to fill the new given size. This happens when
+//   the window is resized.
+// Arguments:
+// - newSize: the amount of space that the panes have to fill now.
+// Return Value:
+// - <none>
+void Tab::ResizeContent(const winrt::Windows::Foundation::Size& newSize)
+{
+    _rootPane->ResizeContent(newSize);
+}
+
+// Method Description:
+// - Attempt to move a separator between panes, as to resize each child on
+//   either size of the separator. See Pane::ResizePane for details.
+// Arguments:
+// - direction: The direction to move the separator in.
+// Return Value:
+// - <none>
+void Tab::ResizePane(const winrt::TerminalApp::Direction& direction)
+{
+    _rootPane->ResizePane(direction);
+}
+
+// Method Description:
+// - Attempt to move focus between panes, as to focus the child on
+//   the other side of the separator. See Pane::NavigateFocus for details.
+// Arguments:
+// - direction: The direction to move the focus in.
+// Return Value:
+// - <none>
+void Tab::NavigateFocus(const winrt::TerminalApp::Direction& direction)
+{
+    _rootPane->NavigateFocus(direction);
+}
+
+// Method Description:
+// - Closes the currently focused pane in this tab. If it's the last pane in
+//   this tab, our Closed event will be fired (at a later time) for anyone
+//   registered as a handler of our close event.
+// Arguments:
+// - <none>
+// Return Value:
+// - <none>
+void Tab::ClosePane()
+{
+    auto focused = _rootPane->GetFocusedPane();
+    focused->Close();
 }
 
 DEFINE_EVENT(Tab, Closed, _closedHandlers, ConnectionClosedEventArgs);

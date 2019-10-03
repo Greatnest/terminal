@@ -84,7 +84,7 @@ Settings::Settings() :
     gsl::span<COLORREF> tableView = { _ColorTable, gsl::narrow<ptrdiff_t>(COLOR_TABLE_SIZE) };
     gsl::span<COLORREF> xtermTableView = { _XtermColorTable, gsl::narrow<ptrdiff_t>(XTERM_COLOR_TABLE_SIZE) };
     ::Microsoft::Console::Utils::Initialize256ColorTable(xtermTableView);
-    ::Microsoft::Console::Utils::InitializeCampbellColorTable(tableView);
+    ::Microsoft::Console::Utils::InitializeCampbellColorTableForConhost(tableView);
 }
 
 // Routine Description:
@@ -124,7 +124,7 @@ void Settings::ApplyDesktopSpecificDefaults()
     _bHistoryNoDup = FALSE;
 
     gsl::span<COLORREF> tableView = { _ColorTable, gsl::narrow<ptrdiff_t>(COLOR_TABLE_SIZE) };
-    ::Microsoft::Console::Utils::InitializeCampbellColorTable(tableView);
+    ::Microsoft::Console::Utils::InitializeCampbellColorTableForConhost(tableView);
 
     _fTrimLeadingZeros = false;
     _fEnableColorSelection = false;
@@ -325,6 +325,24 @@ void Settings::Validate()
     // Ensure that our fill attributes only contain colors and not any box drawing or invert attributes.
     WI_ClearAllFlags(_wFillAttribute, ~(FG_ATTRS | BG_ATTRS));
     WI_ClearAllFlags(_wPopupFillAttribute, ~(FG_ATTRS | BG_ATTRS));
+
+    // If the extended color options are set to invalid values (all the same color), reset them.
+    if (_CursorColor != Cursor::s_InvertCursorColor && _CursorColor == _DefaultBackground)
+    {
+        _CursorColor = Cursor::s_InvertCursorColor;
+    }
+
+    if (_DefaultForeground != INVALID_COLOR && _DefaultForeground == _DefaultBackground)
+    {
+        // INVALID_COLOR is used as an "unset" sentinel in future attribute functions.
+        _DefaultForeground = _DefaultBackground = INVALID_COLOR;
+        // If the damaged settings _further_ propagated to the default fill attribute, fix it.
+        if (_wFillAttribute == 0)
+        {
+            // These attributes were taken from the Settings ctor and equal "gray on black"
+            _wFillAttribute = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
+        }
+    }
 
     FAIL_FAST_IF(!(_dwWindowSize.X > 0));
     FAIL_FAST_IF(!(_dwWindowSize.Y > 0));
